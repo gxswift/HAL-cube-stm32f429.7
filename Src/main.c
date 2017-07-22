@@ -37,6 +37,7 @@
   */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "string.h"
 #include "stm32f4xx_hal.h"
 
 /* USER CODE BEGIN Includes */
@@ -51,6 +52,8 @@ LTDC_HandleTypeDef hltdc;
 SD_HandleTypeDef hsd;
 
 SPI_HandleTypeDef hspi1;
+
+UART_HandleTypeDef huart1;
 
 PCD_HandleTypeDef hpcd_USB_OTG_HS;
 
@@ -70,6 +73,8 @@ static void MX_SDIO_SD_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USB_OTG_HS_PCD_Init(void);
 static void MX_ETH_Init(void);
+static void MX_USART1_UART_Init(void);
+static void MX_NVIC_Init(void);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -77,8 +82,65 @@ static void MX_ETH_Init(void);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
+
 uint32_t t = 0;
 uint8_t flag = 0;
+uint8_t Rx[200];
+uint8_t Tx[200];
+//D17 G7
+void LED_Func()
+{
+	HAL_GPIO_TogglePin(GPIOD,GPIO_PIN_12);
+	HAL_GPIO_TogglePin(GPIOG,GPIO_PIN_7);
+}
+
+
+
+void delay(uint32_t d)
+{
+	while(d--);
+}
+//-----------------------------------------------------
+typedef struct
+{
+	uint8_t Read;
+	uint8_t Write;
+	uint8_t Lenth;
+	uint8_t Data[256];
+}RING;
+RING TX,RX;
+
+void Buffer_Init(void )
+{
+	memset(&RX,0,sizeof(RING));
+	memset(&TX,0,sizeof(RING));
+}
+void Write_Data(RING *ring,uint8_t data)
+{
+	ring->Data[ring->Write] = data;
+	ring->Write++;
+	ring->Lenth++;
+}
+uint8_t Read_Data(RING *ring) 
+{
+	return ring->Data[ring->Read++];
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	*Tx = *Rx;
+	HAL_UART_Transmit(huart,Tx,1,20);
+	HAL_UART_Receive_IT(&huart1, Rx, 1);
+}
+/*
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+	uint8_t temp;
+	if (TX.Lenth)
+		temp = Read_Data(&TX);
+		HAL_UART_Transmit_IT(huart,&temp,1);
+}*/
+//-----------------------------------------------------
 /* USER CODE END 0 */
 
 int main(void)
@@ -111,33 +173,27 @@ int main(void)
   MX_SDIO_SD_Init();
   MX_SPI1_Init();
   MX_USB_OTG_HS_PCD_Init();
-//  MX_ETH_Init();
+  MX_ETH_Init();
+  MX_USART1_UART_Init();
+
+  /* Initialize interrupts */
+  MX_NVIC_Init();
 
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
-
+	memcpy(Tx,"USART TEST",14);
+	HAL_UART_Transmit_IT(&huart1, Tx, sizeof(Tx));
+	delay(10000000);
+	memcpy(Tx,"end\r\n",14);
+	HAL_UART_Transmit_IT(&huart1, Tx, sizeof(Tx));	
+	HAL_UART_Receive_IT(&huart1, Rx, 1);
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
   /* USER CODE END WHILE */
-		t++;
-		if(t>5000000)//D12,G7
-		{
-			flag^=1;
-			t = 0;
-			if(flag)
-			{				HAL_GPIO_WritePin(GPIOD,GPIO_PIN_12,GPIO_PIN_SET);
-							HAL_GPIO_WritePin(GPIOG,GPIO_PIN_7,GPIO_PIN_SET);
-
-			}
-			else
-			{
-			HAL_GPIO_WritePin(GPIOD,GPIO_PIN_12,GPIO_PIN_RESET);
-							HAL_GPIO_WritePin(GPIOG,GPIO_PIN_7,GPIO_PIN_RESET);
-			}
-		}	
+	
   /* USER CODE BEGIN 3 */
 
   }
@@ -215,6 +271,15 @@ void SystemClock_Config(void)
 
   /* SysTick_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
+}
+
+/** NVIC Configuration
+*/
+static void MX_NVIC_Init(void)
+{
+  /* USART1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(USART1_IRQn, 2, 1);
+  HAL_NVIC_EnableIRQ(USART1_IRQn);
 }
 
 /* ETH init function */
@@ -361,6 +426,25 @@ static void MX_SPI1_Init(void)
 
 }
 
+/* USART1 init function */
+static void MX_USART1_UART_Init(void)
+{
+
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+}
+
 /* USB_OTG_HS init function */
 static void MX_USB_OTG_HS_PCD_Init(void)
 {
@@ -424,8 +508,6 @@ static void MX_FMC_Init(void)
         * Output
         * EVENT_OUT
         * EXTI
-     PA9   ------> USART1_TX
-     PA10   ------> USART1_RX
 */
 static void MX_GPIO_Init(void)
 {
@@ -470,14 +552,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PA9 PA10 */
-  GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 }
 
