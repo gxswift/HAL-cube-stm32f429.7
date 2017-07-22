@@ -84,7 +84,6 @@ static void MX_NVIC_Init(void);
 /* USER CODE BEGIN 0 */
 
 uint32_t t = 0;
-uint8_t flag = 0;
 uint8_t Rx[200];
 uint8_t Tx[200];
 //D17 G7
@@ -123,23 +122,27 @@ void Write_Data(RING *ring,uint8_t data)
 }
 uint8_t Read_Data(RING *ring) 
 {
+	if(ring->Lenth)
+		ring->Lenth--;
 	return ring->Data[ring->Read++];
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	*Tx = *Rx;
-	HAL_UART_Transmit(huart,Tx,1,20);
 	HAL_UART_Receive_IT(&huart1, Rx, 1);
+	if(RX.Lenth<255)
+		Write_Data(&RX,Rx[0]);
 }
-/*
+
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
 	uint8_t temp;
-	if (TX.Lenth)
-		temp = Read_Data(&TX);
-		HAL_UART_Transmit_IT(huart,&temp,1);
-}*/
+	if (RX.Lenth)
+	{
+		temp = Read_Data(&RX);
+		while(HAL_OK != HAL_UART_Transmit_IT(huart,&temp,1));
+	}
+}
 //-----------------------------------------------------
 /* USER CODE END 0 */
 
@@ -147,7 +150,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+		uint8_t temp;
   /* USER CODE END 1 */
 
   /* MCU Configuration----------------------------------------------------------*/
@@ -182,18 +185,22 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
-	memcpy(Tx,"USART TEST",14);
+	memcpy(Tx,"USART TEST\r\n",18);
 	HAL_UART_Transmit_IT(&huart1, Tx, sizeof(Tx));
-	delay(10000000);
-	memcpy(Tx,"end\r\n",14);
-	HAL_UART_Transmit_IT(&huart1, Tx, sizeof(Tx));	
+
 	HAL_UART_Receive_IT(&huart1, Rx, 1);
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
   /* USER CODE END WHILE */
-	
+
+	if (RX.Lenth)//有接收到数据，开启发送中断
+	{
+		temp = Read_Data(&RX);
+		while(HAL_OK != HAL_UART_Transmit_IT(&huart1,&temp,1));
+	}
+	delay(3000000);
   /* USER CODE BEGIN 3 */
 
   }
