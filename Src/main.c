@@ -140,7 +140,8 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 	if (RX.Lenth)
 	{
 		temp = Read_Data(&RX);
-		while(HAL_OK != HAL_UART_Transmit_IT(huart,&temp,1));
+		HAL_UART_Transmit_IT(huart,&temp,1);
+	//	while(HAL_OK != HAL_UART_Transmit_IT(huart,&temp,1));
 	}
 }
 //-----------------------------------------------------
@@ -198,7 +199,8 @@ int main(void)
 	if (RX.Lenth)//有接收到数据，开启发送中断
 	{
 		temp = Read_Data(&RX);
-		while(HAL_OK != HAL_UART_Transmit_IT(&huart1,&temp,1));
+		HAL_UART_Transmit_IT(&huart1,&temp,1);
+	//	while(HAL_OK != HAL_UART_Transmit_IT(&huart1,&temp,1));
 	}
 	delay(3000000);
   /* USER CODE BEGIN 3 */
